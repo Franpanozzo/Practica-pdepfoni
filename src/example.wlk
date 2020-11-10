@@ -22,11 +22,13 @@ class Linea{
 	const numeroTel
 	const packActivos = []
 	const consumosRealizados = []
+	const registroDeudas = []
+	var tipo
 	
 	method costoPromConsumosRealizadosEntre(fechaInicio,fechaFin) {
 	const realizadosEntre = self.realizadosEntre(fechaInicio,fechaFin)
 	return self.sumarCostoConsumos(realizadosEntre) / realizadosEntre.size()
-	}
+		}
 	
 	method sumarCostoConsumos(consumos) = consumos.sum({consumo => consumo.costo()})
 	
@@ -36,12 +38,48 @@ class Linea{
 	
 	method consumosUltimoMes() {
 		 const hoy = new Date()
-		 return consumosRealizados.filter({consumo => consumo.estaEntreFechas(hoy.minusDays(30),hoy)})
+		 //return consumosRealizados.filter({consumo => consumo.estaEntreFechas(hoy.minusDays(30),hoy)})
+		 //REPETICION DE LOGICA, es asi:
+		 return self.realizadosEntre(hoy.minusDays(30),hoy)
 		 }
 	method agregarPack(pack){
 		packActivos.add(pack)
-	}
+		}
+	method puedeRealizarConsumo(consumo) = packActivos.any({pack => pack.puedeSatisfacer(consumo)})
 	
+	method realizarConsumo(consumo){ 
+		consumo.afectar(self.ultimoQuePuedaSatisfacer(consumo))
+		self.agregarConsumoRealizado(consumo)
+		}
+	method agregarConsumoRealizado(consumo){
+		consumosRealizados.add(consumo)
+	}
+		
+	method ultimoQuePuedaSatisfacer(consumo) = packActivos.reverse().findOrElse({pack => pack.puedeSatisfacer(consumo)},{ tipo.noSeEncontroPack(self,consumo)})
+	
+	method realizarLimpiezaPacks() {
+		packActivos.removeAllSuchThat({pack => pack.tieneVigencia().negate()})
+	}
+	method agregarDeuda(deuda){
+		registroDeudas.add(deuda)
+	}
+}
+
+object comun{
+	method noSeEncontroPack(linea,consumo) {
+		self.error("No se encontro ningun pack que pueda satisfacer al cambio")
+		}
+}
+object black{
+	method noSeEncontroPack(linea,consumo){
+		linea.agregarConsumoRealizado(consumo)
+		linea.agregarDeuda(consumo.costo())
+	}
+}
+object platinum{
+	method noSeEncontroPack(linea,consumo){
+		linea.agregarConsumoRealizado(consumo)
+	}
 }
 
 class Consumo{
@@ -63,6 +101,10 @@ class ConsumoLlamada inherits Consumo {
 	override method costo() = telefonia.cobrarLlamada(tiempo)
 	
 	method esDeLlamada() = true
+	
+	method afectarPack(pack){
+		pack.afectar(self.costo())
+	}
 } 
 
 class ConsumoInternet inherits Consumo {
@@ -71,6 +113,13 @@ class ConsumoInternet inherits Consumo {
 	method esDeLlamada() = false
 	
 	override method costo() = telefonia.cobrarInternet(mb)
+	
+	method mbConsumidos() = mb
+	
+	method afectarPack(pack){
+		pack.afectar(mb)
+	}
+	method menosDeUnMB() = mb <= 0.1
 	
 }
 
